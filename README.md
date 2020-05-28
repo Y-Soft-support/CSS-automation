@@ -1,2 +1,4 @@
 # CSS-automation
-This space was created so that we could share tools that helps us to automate some painful tasks.  Should you like to contribute feel free it well help all other people seeking the way out of manual tasks that could sometimes be painfull.
+We use this space to share tools that helps us automate some lengthy tasks.
+Should you like to contribute feel free to join the group. We can improve the tools together:)
+It well not only help us but also to other people seeking the way to make their tasks more effective.

@@ -4,7 +4,7 @@
 .DESCRIPTION
     Script helps to refresh the cache of an ORS.
 .EXAMPLE
-    Run the script as Adminstrator from PowerShell.
+    Run the script as an administrator using PowerShell.
 #>
 
 Param (

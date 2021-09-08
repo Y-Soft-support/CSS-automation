@@ -37,8 +37,8 @@ New-NetFirewallRule -DisplayName "YSoft_SafeQ_PGSQL" -Protocol TCP -Direction Ou
 New-NetFirewallRule -DisplayName "YSoft_SafeQ_SPOC_SPOC" -Protocol TCP -Direction Outbound -LocalPort 5555,81,446,7800 -RemoteAddress Any -Action allow
 
 
-YSOFT PAYMENT SYSTEM MPS RULES 
-New-NetFirewallRule -DisplayName "SMB_UDP_In" -Protocol UDP -Direction Inbound -LocalPort 137,138,139 -RemoteAddress Any -Action allow
+YSOFT PAYMENT SYSTEM RULES 
+New-NetFirewallRule -DisplayName "SMB_UDP_In" -Protocol UDP -Direction Inbound -LocalPort 8443 -RemoteAddress Any -Action allow
 
 SMB RULES (INBOUND)
 New-NetFirewallRule -DisplayName "SMB_TCP_In" -Protocol TCP -Direction Inbound -LocalPort 445 -RemoteAddress Any -Action allow

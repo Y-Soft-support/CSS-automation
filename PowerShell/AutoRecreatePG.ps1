@@ -9,42 +9,69 @@ Currently supports PostgreSQL for SafeQ 6.
 
 #>
 
-Param (
-    [Parameter(Mandatory=$false)][string]$PSQL = (Get-WmiObject Win32_Service | Where-Object Name -Like "*SQL*" | Select-Object -ExpandProperty "PathName" | Foreach-Object {(-split $_)[0].Trim("`"") -replace "pgservice.exe", "bin\psql.exe"} | Measure-Object -Minimum | Select-Object -ExpandProperty "Minimum"),
-    [Parameter(Mandatory=$false)][string]$PGDump = ($PSQL | Foreach-Object {(-split $_)[0].Trim("`"") -replace "psql.exe", "pg_dump.exe"}),
-    [Parameter(Mandatory=$false)][string]$PGhost = "127.0.0.1",
-    [Parameter(Mandatory=$false)][string]$PGuser = "postgres"
-     )
+#-----------------------------------------------------------[Parameters]-----------------------------------------------------------
 
-# User input variables
-if(($PGDB = Read-Host "Type DB name or use default [SQDB6]") -eq ''){"SQDB6"}else{$PGDB}
-if(($PGpass = Read-Host "Type postgres password or use default [111111]") -eq ''){"111111"}else{$PGpass}
-if(($PGport = Read-Host "Type postgres port or use default [5433]") -eq ''){"5433"}else{$PGport}
+# Default PostgreSQl connection
+$PG_BIN = "c:\SafeQ6\Management\PGSQL\bin" 
+$PG_HOST = "127.0.0.1"
+$PG_PORT = "5433"
+$PG_DB = "SQDB6"
+$PG_USER = "postgres"
+$env:PGPASSWORD = "111111"
+# if(($PG_DB = Read-Host "Type DB name or use default [SQDB6]") -eq ''){"SQDB6"}else{$PGDB}
 
-Function TestDB([String]$PGDB){
+# SQL commands
+$DROP_DB = "DROP DATABASE SQDB6;"
+$CREATE_DB = "CREATE DATABASE SQDB6;"
+
+# Backup folder
+$BACKUP_FILE = "C:\backup\SQDB6.backup"
+
+#-----------------------------------------------------------[Functions]------------------------------------------------------------
+
+Function Test-DatabaseConnection([String]$PGDB){
 	
-	$pcmd = "SELECT 1 AS result FROM pg_database WHERE datname='$PGDB';"
+	$query = "SELECT 1 AS result FROM pg_database WHERE datname='$PGDB';"
 	try{
-		$queryResult = & $PSQL -p $PGport -U $PGuser -c $pcmd
+		$queryResult = & $PG_BIN\psql.exe -p $PG_PORT -U $PG_USER -c $query
 		$rv = $queryResult[2]
 		if ($rv -eq "(0 rows)") {
 			$rv = 0
 			if($myDebug){Write-Host "TestDB found no value: $rv"}
-		} else{
+		} else {
 			$rv = [int]$rv
 			if($myDebug){Write-Host "TestDB found value: $rv"}
 		}
 		return $rv
-	}
-	catch
-	{
+	} catch {
 		if($myDebug){Write-Host "TestDB failed on $db"}
 		return -1
 	}
 }
 
+Function Backup-Database {
+    & $PG_BIN\pg_dump -Fc dbname > $BACKUP_FILE
+}
 
-#  STOP SERVICES
+Function Restore-Database {
+    # DROP the DB and create it again
+    & $PG_BIN\runtime\psql.exe -U postgres -p 5433 -c $DROP_DB;
+    & $PG_BIN\runtime\psql.exe -U postgres -p 5433 -c $CREATE_DB;
+
+    # restore DB backup
+    & $PG_BIN\pg_restore -d SQDB6 -U postgres -p 5433 $BACKUP_FILE;
+}
+
+
+#-----------------------------------------------------------[Execution]------------------------------------------------------------
+
+# Test the connection to db and that the DB exists
+$PSQL = (Get-WmiObject Win32_Service | Where-Object Name -Like "*SQL*" | Select-Object -ExpandProperty "PathName" | Foreach-Object {(-split $_)[0].Trim("`"") -replace "pgservice.exe", "bin\psql.exe"} | Measure-Object -Minimum | Select-Object -ExpandProperty "Minimum")
+$PG_DUMP = ($PSQL | Foreach-Object {(-split $_)[0].Trim("`"") -replace "psql.exe", "pg_dump.exe"})
+$PSQL = (Get-WmiObject Win32_Service | Where-Object Name -Like "*SQL*" | Select-Object -ExpandProperty "PathName" | Foreach-Object {(-split $_)[0].Trim("`"") -replace "pgservice.exe", "bin\psql.exe"} | Measure-Object -Minimum | Select-Object -ExpandProperty "Minimum")
+Test-DatabaseConnection $PG_DB
+PG_BIN
+# Stop all YSoft services
 Get-Service *YSoft* | Where-Object {$_.Name -ne 'YSoftPGSQL' -and $_.Name -ne 'YYSoftPGSQL' -and $_.Name -ne 'YSoftEtcd'} | Stop-Service -WarningAction silentlyContinue
 
 <#

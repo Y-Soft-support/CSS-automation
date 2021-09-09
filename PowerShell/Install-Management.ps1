@@ -21,9 +21,7 @@
 #>
 
 #-----------------------------------------------------------[Parameters]-----------------------------------------------------------
-# Get pgAdmin Folder
-$PgAdminVersion = Get-ChildItem -Path HKLM:"\SOFTWARE\pgAdmin 4" -Name
-$PgAdminPath = Get-ItemPropertyValue -Path HKLM:"\SOFTWARE\pgAdmin 4\$($PgAdminVersion)" -Name InstallPath
+$PGPASS = '111111'
 
 $DROP_DB = "DROP DATABASE SQDB6;"
 $CREATE_DB = "CREATE DATABASE SQDB6;"
@@ -36,7 +34,23 @@ $SQL_5 = "ALTER ROLE dwhtenantuser_1 WITH PASSWORD '111111';"
 
 $SQL_UPD = $SQL_1, $SQL_2, $SQL_3, $SQL_4, $SQL_5
 
+$IPV4 = (Get-NetIPAddress | Where-Object {$_.AddressState -eq "Preferred" -and $_.PrefixLength -eq 22}).IPAddress
+
+$PGA_HKLM = "\SOFTWARE\pgAdmin 4"
+
 #-----------------------------------------------------------[Functions]------------------------------------------------------------
+
+Function Get-PgAdminPath {
+    try {
+        $PgAdminVersion = Get-ChildItem -Path HKLM:$($PGA_HKLM) -Name
+        $PgAdmin = Get-ItemPropertyValue -Path HKLM:$($PGA_HKLM)\$($PgAdminVersion) -Name InstallPath
+    }
+    catch {
+        $PgAdmin = $null
+    }
+  
+    Return $PgAdmin
+}
 
 Function cleaningAfterUninstall {
     # param([string]$ServiceName)
@@ -58,18 +72,47 @@ Function cleaningAfterUninstall {
     # DeleteRegKey "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Y Soft Corporation\YSoft SafeQ 6"
 }
 
+Function databaseRestore {
+    $env:PGPASSWORD = $PGPASS
+    
+    # recreate DB
+    & $PgAdminPath\runtime\psql.exe -U postgres -p 5433 -c $DROP_DB;
+    & $PgAdminPath\runtime\psql.exe -U postgres -p 5433 -c $CREATE_DB;
+
+    # restore DB backup and update internal users
+    # text format: & $PgAdminPath\runtime\psql.exe -d SQDB6 -U postgres -p 5433 -1 -f c:\backup\sqdb6.backup;
+    & $PgAdminPath\runtime\pg_restore -d SQDB6 -U postgres -p 5433 c:\backup\sqdb6.backup;
+    
+    ForEach ($sql in $SQL_UPD) {
+        & $PgAdminPath\runtime\psql.exe -U postgres -p 5433 -d SQDB6 -c $sql; 
+    }
+}
+
+Function recognizeDatabaseType {
+    Get-Content "c:\backup\sqdb6.backup"
+}
 
 #-----------------------------------------------------------[Execution]------------------------------------------------------------
 
 #Admin rights check
 If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(([System.Security.Principal.SecurityIdentifier]'S-1-5-32-544'))) {
-    Write-Warning 'Administrative rights are missing. Please re-run the script as an Administrator.'
+    Write-Warning 'Insufficient privileges. Please re-run the script as an Administrator.'
     Read-Host 'Press any key to exit the script'
     exit
 }
 
-# Clean the system
-Write-Host "Cleaning the previously installed SafeQ installation."
+# Check pgAdmin 4 availability
+if (Get-PgAdminPath) {
+    $PgAdminPath = Get-PgAdminPath 
+} else {
+    Write-Warning 'The pgAdmin 4 not found. Please install the pgAdmin 4 manually from the following URL:'
+    Start-Process "https://www.postgresql.org/ftp/pgadmin/pgadmin4/"
+    Read-Host 'Press any key to exit the script.'
+    exit
+}
+
+# Make sure the previous installation and leftovers are cleaned
+Write-Host "Verifying and cleaning the previously installed SafeQ installation."
 if (Test-Path C:\SafeQ6) {
     try {
         Start-Process -Wait C:\SafeQ6\Management\uninstall.exe /S
@@ -82,7 +125,7 @@ if (Test-Path C:\SafeQ6) {
 }
 
 # Install Management Service
-C:\Install\ysq-management-server-install.exe /S /CFG:dbPassword=111111 /CFG:noStartSvcs /CFG:dbClass=PGSQL /CFG:localGUID=mgmt201 /CFG:usedLocalIp=10.0.116.177 /CFG:embeddedDB /D=C:\SafeQ6\Management;
+C:\Install\ysq-management-server-install.exe /S /CFG:dbPassword=$PGPASS /CFG:noStartSvcs /CFG:dbClass=PGSQL /CFG:localGUID=mgmt /CFG:usedLocalIp=$IPV4 /CFG:embeddedDB /D=C:\SafeQ6\Management;
 Write-Host "New YSoft SafeQ 6 installation has started."
 
 # Wait for the installation to finish
@@ -111,17 +154,8 @@ Stop-Service -Name "YSoftSQ-LDAP";
 Stop-Service -Name "YSoftIms";
 #>
 
-# Restore Database
-$env:PGPASSWORD = '111111';
-
-& $PgAdminPath\runtime\psql.exe -U postgres -p 5433 -c $DROP_DB;
-& $PgAdminPath\runtime\psql.exe -U postgres -p 5433 -c $CREATE_DB;
-& $PgAdminPath\runtime\pg_restore -d SQDB6 -U postgres -p 5433 c:\backup\sqdb6.backup;
-# text format: & $PgAdminPath\runtime\psql.exe -d SQDB6 -U postgres -p 5433 -1 -f c:\backup\sqdb6.backup;
-
-ForEach ($sql in $SQL_UPD) {
-    & $PgAdminPath\runtime\psql.exe -U postgres -p 5433 -d SQDB6 -c $sql; 
-}
+# Restore Database function
+databaseRestore
 
 # update remote access to the DB server
 # Add-Content C:\SafeQ6\Management\PGSQL-data\pg_hba.conf "`nhost    all             all             10.0.0.0/16            trust"
@@ -129,13 +163,7 @@ ForEach ($sql in $SQL_UPD) {
 # Start Management Service
 Start-Service -Name "YSoftSQ-Management";
 
-<#  # Start other services
-Start-Service -Name "YSoftSQ-LDAP";
-Start-Service -Name "YSoftIms";
-#>
-
 # Wait until SafeQ is up and running
-# Started Application in
 Start-Sleep -s 99;
 $startupFinished = "false"
 

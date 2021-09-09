@@ -34,18 +34,13 @@ Function Test-DatabaseConnection([String]$PGDB){
 	$query = "SELECT 1 AS result FROM pg_database WHERE datname='$PGDB';"
 	try{
 		$queryResult = & $PG_BIN\psql.exe -p $PG_PORT -U $PG_USER -c $query
-		$rv = $queryResult[2]
-		if ($rv -eq "(0 rows)") {
-			$rv = 0
-			if($myDebug){Write-Host "TestDB found no value: $rv"}
+		if ($queryResult) {
+			Write-Host "Database check successful."
 		} else {
-			$rv = [int]$rv
-			if($myDebug){Write-Host "TestDB found value: $rv"}
+			Write-Host "Database not found. Please verify the database name."
 		}
-		return $rv
 	} catch {
-		if($myDebug){Write-Host "TestDB failed on $db"}
-		return -1
+		Write-Host "Verify the database name AND/OR connection paramaters."
 	}
 }
 

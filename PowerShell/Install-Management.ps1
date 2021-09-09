@@ -72,7 +72,7 @@ Function cleaningAfterUninstall {
     # DeleteRegKey "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Y Soft Corporation\YSoft SafeQ 6"
 }
 
-Function databaseRestore {
+Function Restore-Database {
     $env:PGPASSWORD = $PGPASS
     
     # recreate DB
@@ -155,7 +155,7 @@ Stop-Service -Name "YSoftIms";
 #>
 
 # Restore Database function
-databaseRestore
+Restore-Database
 
 # update remote access to the DB server
 # Add-Content C:\SafeQ6\Management\PGSQL-data\pg_hba.conf "`nhost    all             all             10.0.0.0/16            trust"

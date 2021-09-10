@@ -18,34 +18,41 @@ $PG_PORT = "5433"
 $PG_DB = "SQDB6"
 $PG_USER = "postgres"
 $env:PGPASSWORD = "111111"
-# if(($PG_DB = Read-Host "Type DB name or use default [SQDB6]") -eq ''){"SQDB6"}else{$PGDB}
 
 # SQL commands
-$DROP_DB = "DROP DATABASE SQDB6;"
-$CREATE_DB = "CREATE DATABASE SQDB6;"
+$DROP_DB = "DROP DATABASE $PG_DB;"
+$CREATE_DB = "CREATE DATABASE $PG_DB;"
 
-# Backup folder
-$BACKUP_FILE = "C:\backup\SQDB6.backup"
+# Backup file path
+$BACKUP_FILE = "C:\backup\SQDB6_$timestamp.backup"
+
+# Miscelaneous
+$timestamp = (Get-Date).ToString("yyyy-MM-dd_HH-mm-ss")
+$IPV4 = (Get-NetIPAddress | Where-Object {$_.AddressState -eq "Preferred" -and $_.PrefixLength -eq 22}).IPAddress
+$CNAME = [System.Net.Dns]::GetHostName()
 
 #-----------------------------------------------------------[Functions]------------------------------------------------------------
 
-Function Test-DatabaseConnection([String]$PGDB){
-	
-	$query = "SELECT 1 AS result FROM pg_database WHERE datname='$PGDB';"
+Function Test-DatabaseConnection($database) {
+
+	$query = "SELECT 1 FROM pg_database WHERE datname='$database';"
 	try{
 		$queryResult = & $PG_BIN\psql.exe -p $PG_PORT -U $PG_USER -c $query
-		if ($queryResult) {
+		$check = $queryResult[3]
+		if ($check -eq "(1 row)") {
 			Write-Host "Database check successful."
 		} else {
 			Write-Host "Database not found. Please verify the database name."
 		}
 	} catch {
-		Write-Host "Verify the database name AND/OR connection paramaters."
+		Write-Host "Verify the database connection parameters."
+		Read-Host 'Press any key to exit the script'
+		exit
 	}
 }
 
 Function Backup-Database {
-    & $PG_BIN\pg_dump -Fc dbname > $BACKUP_FILE
+    & $PG_BIN\pg_dump -h $PG_HOST -p $PG_PORT -U $PG_USER -Fc $PG_DB > $BACKUP_FILE | Out-Null
 }
 
 Function Restore-Database {
@@ -57,43 +64,51 @@ Function Restore-Database {
     & $PG_BIN\pg_restore -d SQDB6 -U postgres -p 5433 $BACKUP_FILE;
 }
 
+Function Update-ClusterServer {
+	$sql1 = UPDATE cluster_server SET ip_address = '$IPV4', description = '$CNAME' WHERE id=1
+	$sql2 = TRUNCATE TABLE smartq_validator  # (SQDB5, SQDB5_SQDW)
+}
 
 #-----------------------------------------------------------[Execution]------------------------------------------------------------
 
-# Test the connection to db and that the DB exists
+# TODO: Detect PG folder
+
+# Test if the connection to database is open and that the database exists
+Test-DatabaseConnection $PG_DB
+
+# Stop all YSoft services
+Get-Service *YSoft* | Where-Object {$_.Name -ne 'YSoftPGSQL' -and $_.Name -ne 'YYSoftPGSQL' -and $_.Name -ne 'YSoftEtcd'} | Stop-Service -WarningAction silentlyContinue
+
+# Backup of the database
+Backup-Database
+
+# Recreate the database from the backup
+Restore-Database
+
+# Reset password for the admin
+
+
+# UPDATE database
+Update-ClusterServer
+
+
+# Start all YSoft services
+Get-Service *YSoft* | Where-Object {$_.Name -ne 'YSoftPGSQL' -and $_.Name -ne 'YYSoftPGSQL' -and $_.Name -ne 'YSoftEtcd'} | Start-Service -WarningAction silentlyContinue
+
+
+<# Test the connection to db and that the DB exists
 $PSQL = (Get-WmiObject Win32_Service | Where-Object Name -Like "*SQL*" | Select-Object -ExpandProperty "PathName" | Foreach-Object {(-split $_)[0].Trim("`"") -replace "pgservice.exe", "bin\psql.exe"} | Measure-Object -Minimum | Select-Object -ExpandProperty "Minimum")
 $PG_DUMP = ($PSQL | Foreach-Object {(-split $_)[0].Trim("`"") -replace "psql.exe", "pg_dump.exe"})
 $PSQL = (Get-WmiObject Win32_Service | Where-Object Name -Like "*SQL*" | Select-Object -ExpandProperty "PathName" | Foreach-Object {(-split $_)[0].Trim("`"") -replace "pgservice.exe", "bin\psql.exe"} | Measure-Object -Minimum | Select-Object -ExpandProperty "Minimum")
 Test-DatabaseConnection $PG_DB
 PG_BIN
-# Stop all YSoft services
-Get-Service *YSoft* | Where-Object {$_.Name -ne 'YSoftPGSQL' -and $_.Name -ne 'YYSoftPGSQL' -and $_.Name -ne 'YSoftEtcd'} | Stop-Service -WarningAction silentlyContinue
 
-<#
-# BACKUP 
-C:\SafeQ5\PGSQL\bin\pg_dump.exe --host 127.0.0.1 # port 5433 # username "postgres" # no-password  # format custom # blobs # encoding UTF8 # verbose # file "C:\Users\Administrator\Desktop\bak\DATA\test.backup" "SQDB5"
-C:\SafeQ5\PGSQL\bin\pg_dump.exe --host 127.0.0.1 # port 5433 # username "postgres" # no-password  # format custom # blobs # encoding UTF8 # verbose # file "C:\Users\Administrator\Desktop\bak\DATA\test.backup" "SQDB5_SQDW"
-
-# SQL
-DROP DATABASE SQDB5
-DROP DATABASE SQDB5_SQDW
-
-#  CREATE DBs
-CREATE DATABASE SQDB5
-CREATE DATABASE SQDB5_SQDW
 
 # Upload license
-
-# RESTORE
-C:\SafeQ5\PGSQL\bin\pg_restore.exe --host 127.0.0.1 # port 5433 # username "postgres" # dbname "SQDB5" # no-password  # verbose "C:\Users\Administrator\Desktop\bak\MU62.backup"
-
-C:\SafeQ5\PGSQL\bin\pg_restore.exe --host 127.0.0.1 # port 5433 # username "postgres" # dbname "SQDB5_SQDW" # no-password  # verbose "C:\Users\Administrator\Desktop\bak\MU62DW.backup"
 
 # UPDATE database
 UPDATE cluster_server SET ip_address = '10.0.125.144', description = 'CSS700' WHERE id=1
 TRUNCATE TABLE smartq_validator (SQDB5, SQDB5_SQDW)
 
-#>
 
-# START SERVICES
-Get-Service *YSoft* | Where-Object {$_.Name -ne 'YSoftPGSQL' -and $_.Name -ne 'YYSoftPGSQL' -and $_.Name -ne 'YSoftEtcd'} | Start-Service -WarningAction silentlyContinue
+#>

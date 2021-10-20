@@ -21,6 +21,7 @@
 #>
 
 #-----------------------------------------------------------[Parameters]-----------------------------------------------------------
+# $INSTALL_SOURCE = ? TODO
 $PGPASS = '111111'
 
 $DROP_DB = "DROP DATABASE SQDB6;"
@@ -38,6 +39,9 @@ $IPV4 = (Get-NetIPAddress | Where-Object {$_.AddressState -eq "Preferred" -and $
 
 $PGA_HKLM = "\SOFTWARE\pgAdmin 4"
 
+$SafeqFolder = "C:\SafeQ6"
+$ManagementFolder = "$($SafeqFolder)\Management"
+
 #-----------------------------------------------------------[Functions]------------------------------------------------------------
 
 Function Get-PgAdminPath {
@@ -54,7 +58,7 @@ Function Get-PgAdminPath {
 
 Function cleaningAfterUninstall {
     # param([string]$ServiceName)
-    Remove-Item -LiteralPath "C:\SafeQ6" -Force -Recurse -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $SafeqFolder -Force -Recurse -ErrorAction SilentlyContinue
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftEtcd) {sc.exe delete -Name "YSoftEtcd" | Out-Null}
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftIms) {sc.exe delete "YSoftIms" | Out-Null}
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftSQ-LDAP) {sc.exe delete "YSoftSQ-LDAP" | Out-Null}
@@ -113,9 +117,9 @@ if (Get-PgAdminPath) {
 
 # Make sure the previous installation and leftovers are cleaned
 Write-Host "Verifying and cleaning the previously installed SafeQ installation."
-if (Test-Path C:\SafeQ6) {
+if (Test-Path $SafeqFolder) {
     try {
-        Start-Process -Wait C:\SafeQ6\Management\uninstall.exe /S
+        Start-Process -Wait $($ManagementFolder)\uninstall.exe /S
     } catch {
         Write-Host "YSoft SafeQ 6 is already uninstalled."
     } finally {
@@ -125,22 +129,22 @@ if (Test-Path C:\SafeQ6) {
 }
 
 # Install Management Service
-C:\Install\ysq-management-server-install.exe /S /CFG:dbPassword=$PGPASS /CFG:noStartSvcs /CFG:dbClass=PGSQL /CFG:localGUID=mgmt /CFG:usedLocalIp=$IPV4 /CFG:embeddedDB /D=C:\SafeQ6\Management;
+C:\Install\ysq-management-server-install.exe /S /CFG:dbPassword=$PGPASS /CFG:noStartSvcs /CFG:dbClass=PGSQL /CFG:localGUID=mgmt /CFG:usedLocalIp=$IPV4 /CFG:embeddedDB /D=$ManagementFolder;
 Write-Host "New YSoft SafeQ 6 installation has started."
 
 # Wait for the installation to finish
 Start-Sleep -s 180;
-$fin = "finished"
-$version = "6.0.*.[0-9]"
-$installationFinished = "false"
+$VersionLine = Get-Content -Path "C:\SafeQ6\Management\management-server-install.log" -TotalCount 1
+$Version = $VersionLine.Split('version')[-1].Trim()
+$InstallationFinished = "false"
 
-while ($installationFinished -match "false") {
+while ($InstallationFinished -match "false") {
 Start-Sleep -s 20;
-$filecontents = Get-Content -tail 10 -Path "C:\SafeQ6\Management\management-server-install.log"
-$checkMatch = $filecontents | Where-Object { $_ -match "Installation of YSoft SafeQ Management Server version $($version) $($fin)" }
+$FileContents = Get-Content -Path "$($ManagementFolder)\management-server-install.log" -TotalCount 1
+$CheckMatch = $FileContents | Where-Object { $_ -match "Installation of YSoft SafeQ Management Server version $($Version) finished" }
 
-    if ($checkMatch -match '.*') {
-        $installationFinished = "true"
+    if ($CheckMatch -match '.*') {
+        $InstallationFinished = "true"
     } else {
         Write-Host "Installation has not finished yet."
     }
@@ -165,18 +169,19 @@ Start-Service -Name "YSoftSQ-Management";
 
 # Wait until SafeQ is up and running
 Start-Sleep -s 99;
-$startupFinished = "false"
+$StartupFinished = "false"
 
 while ($startupFinished -match "false") {
-    $filecontents = Get-Content -tail 100 -Path "C:\SafeQ6\Management\logs\management-service.log"
-    $checkMatch = $filecontents | Where-Object { $_ -match "Server startup in" }
+    $FileContents = Get-Content -tail 100 -Path "C:\SafeQ6\Management\logs\management-service.log"
+    $CheckMatch = $FileContents | Where-Object { $_ -match "Server startup in" }
+    $exception = $filecontents | Where-Object { $_ -match "Exception" }
 
     if ($checkMatch -match '.*') {
         $startupFinished = "true"
-    } elseif (Get-Service | Where-Object {$_.Status -eq "Stopped" -and $_.Name -eq "YSoftSQ-Management"}) {
-        #$checkMatch = $filecontents | Where-Object { $_ -match "Exception" }
-        Write-Host "Check the mangement-service.log file it seems something is going wrong!" -foregroundcolor Red
-    }    else {
+    } elseif ($exception -match '.*') {
+        Write-Host "Startup of the Management service failed. Press any key to exit the script..." -foregroundcolor Red;
+        exit
+    } else {
         Write-Host "Waiting for Management Service to complete the startup."
         Start-Sleep -s 10;
     }
@@ -195,8 +200,8 @@ UPDATE [tenant_1].[users] SET pass = '$2a$12$H5.1EcVQHvGkO/LrTtXbj.S8O1O.WzKKVgA
 #>
 
 # TODO: Activate YSoft SafeQ License automatically (an API user is needed or database insert must be done)
-$license = Get-Content "\\10.0.0.105\licence_devel\SafeQ 6.0\current\license.xml" -Raw
-Set-Clipboard -Value $license
+$License = Get-Content "\\10.0.0.105\licence_devel\SafeQ 6.0\current\license.xml" -Raw
+Set-Clipboard -Value $License
 
 Write-Host "SQDB6 database was succesfully restored. License for activation is in your clipboard or you can rerun License-To-Clipboard.ps1. Press any key to continue..." -foregroundcolor Green;
-$host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+$host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null

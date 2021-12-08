@@ -74,6 +74,7 @@ Function cleaningAfterUninstall {
     # DeleteRegKey "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${REGISTRY_PRODUCT_NAME}"
     # DeleteRegValue "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "SAFEQ_HOME"
     # DeleteRegKey "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Y Soft Corporation\YSoft SafeQ 6"
+    # https://jira.ysoft.local/browse/L4C-926
 }
 
 Function Restore-Database {

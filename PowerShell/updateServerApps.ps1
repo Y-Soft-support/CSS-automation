@@ -1,34 +1,3 @@
-function Set-DefaultBrowser
-{
-    param($defaultBrowser)
-
-    $regKey      = "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{0}\UserChoice"
-    $regKeyFtp   = $regKey -f 'ftp'
-    $regKeyHttp  = $regKey -f 'http'
-    $regKeyHttps = $regKey -f 'https'
-
-    switch -Regex ($defaultBrowser.ToLower())
-    {
-        # Internet Explorer
-        'ie|internet|explorer' {
-            Set-ItemProperty $regKeyFtp   -name ProgId IE.FTP
-            Set-ItemProperty $regKeyHttp  -name ProgId IE.HTTP
-            Set-ItemProperty $regKeyHttps -name ProgId IE.HTTPS
-            break
-        }
-        # Google Chrome
-        'cr|google|chrome' {
-            Set-ItemProperty $regKeyFtp   -name ProgId ChromeHTML
-            Set-ItemProperty $regKeyHttp  -name ProgId ChromeHTML
-            Set-ItemProperty $regKeyHttps -name ProgId ChromeHTML
-            break
-        }
-    } 
-
-# thanks to http://newoldthing.wordpress.com/2007/03/23/how-does-your-browsers-know-that-its-not-the-default-browser/
-}
-
-
 # Install Chocolatey
 try {
     choco upgrade chocolatey

@@ -52,8 +52,6 @@ choco install notepadplusplus-npppluginmanager
 choco install googlechrome
 choco install foxitreader
 
-Set-DefaultBrowser cr  # options are "cr" or "ie"
-
 choco install wireshark
 choco install winpcap
 
@@ -62,6 +60,11 @@ choco install totalcommander
 choco install mobaxterm
 
 ## choco install fiddler # maybe not
+
+# Set default browser to Chrome
+Set-ItemProperty "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\ftp\UserChoice" -name ProgId ChromeHTML
+Set-ItemProperty "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice" -name ProgId ChromeHTML
+Set-ItemProperty "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice" -name ProgId ChromeHTML
 
 <#
 telnet

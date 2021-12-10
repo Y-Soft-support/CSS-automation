@@ -3,7 +3,7 @@
    YSoft SAFEQ 6 installation script for Management Service. It is mainly for Technical Analyst practical test evaluation.
 
 .DESCRIPTION
-   Script automates installation of Management Service and restoration of a database.
+   Script automates installation of Management Service and restoration of a PostgreSQL database.
    Before running the script:
    - Make sure the pgAdmin 4 is installed
    - Upload desired Management Service installer version to C:\install
@@ -32,8 +32,9 @@ $SQL_2 = "UPDATE cluster_mngmt.tenants SET db_pass='111111' WHERE schema_name='t
 $SQL_3 = "UPDATE cluster_mngmt.tenant_warehouses SET db_pass='111111' WHERE schema_name='dwhtenant_1';"
 $SQL_4 = "ALTER ROLE tenantuser_1 WITH PASSWORD '111111';"
 $SQL_5 = "ALTER ROLE dwhtenantuser_1 WITH PASSWORD '111111';"
-
-$SQL_UPD = $SQL_1, $SQL_2, $SQL_3, $SQL_4, $SQL_5
+$SQL_6 = "UPDATE cluster_mngmt.users SET pass = '`$2a`$12`$H5.1EcVQHvGkO/LrTtXbj.S8O1O.WzKKVgAgoDlkb4QOpylHdJI9u' WHERE login = 'admin';"
+$SQL_7 = "UPDATE tenant_1.users SET pass = '`$2a`$12`$H5.1EcVQHvGkO/LrTtXbj.S8O1O.WzKKVgAgoDlkb4QOpylHdJI9u' WHERE login = 'admin';"
+$SQL_UPD = $SQL_1, $SQL_2, $SQL_3, $SQL_4, $SQL_5, $SQL_6, $SQL_7
 
 $IPV4 = (Get-NetIPAddress | Where-Object {$_.AddressState -eq "Preferred" -and $_.PrefixLength -eq 22}).IPAddress
 
@@ -57,8 +58,14 @@ Function Get-PgAdminPath {
 }
 
 Function cleaningAfterUninstall {
-    # param([string]$ServiceName)
+
+    $reg1 = "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Y Soft Corporation\YSoft SafeQ 6"
+    $reg2 = '"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "SAFEQ_HOME"'
+    $reg3 = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\YSoft SafeQ 6}"
+    $registries = $reg1, $reg2, $reg3
+
     Remove-Item -LiteralPath $SafeqFolder -Force -Recurse -ErrorAction SilentlyContinue
+
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftEtcd) {sc.exe delete -Name "YSoftEtcd" | Out-Null}
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftIms) {sc.exe delete "YSoftIms" | Out-Null}
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftSQ-LDAP) {sc.exe delete "YSoftSQ-LDAP" | Out-Null}
@@ -70,11 +77,11 @@ Function cleaningAfterUninstall {
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftSQ-TS) {sc.exe delete "YSoftSQ-TS" | Out-Null}
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftSQ-WPS) {sc.exe delete "YSoftSQ-WPS" | Out-Null}
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftImsProxy) {sc.exe delete "YSoftImsProxy" | Out-Null}
-    # if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\ABBYY.Licensing.FineReaderEngine.Windows.11.0) {sc.exe delete "ABBYY.Licensing.FineReaderEngine.Windows.11.0" | Out-Null}
-    # DeleteRegKey "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${REGISTRY_PRODUCT_NAME}"
-    # DeleteRegValue "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "SAFEQ_HOME"
-    # DeleteRegKey "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Y Soft Corporation\YSoft SafeQ 6"
-    # https://jira.ysoft.local/browse/L4C-926
+    if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\ABBYY.Licensing.FineReaderEngine.Windows.11.0) {sc.exe delete "ABBYY.Licensing.FineReaderEngine.Windows.11.0" | Out-Null}
+
+    ForEach ($reg in $registries) {
+        if (Test-Path $reg) {Remove-Item -Path $reg -Force -Verbose}
+    }
 }
 
 Function Restore-Database {
@@ -91,10 +98,6 @@ Function Restore-Database {
     ForEach ($sql in $SQL_UPD) {
         & $PgAdminPath\runtime\psql.exe -U postgres -p 5433 -d SQDB6 -c $sql; 
     }
-}
-
-Function recognizeDatabaseType {
-    Get-Content "c:\backup\sqdb6.backup"
 }
 
 #-----------------------------------------------------------[Execution]------------------------------------------------------------
@@ -153,17 +156,8 @@ $CheckMatch = $FileContents | Where-Object { $_ -match "Installation of YSoft Sa
 
 Write-Host "Installation finished."
 
-<#  # Stop services 
-Stop-Service -Name "YSoftSQ-Management";
-Stop-Service -Name "YSoftSQ-LDAP";
-Stop-Service -Name "YSoftIms";
-#>
-
 # Restore Database function
 Restore-Database
-
-# update remote access to the DB server
-# Add-Content C:\SafeQ6\Management\PGSQL-data\pg_hba.conf "`nhost    all             all             10.0.0.0/16            trust"
 
 # Start Management Service
 Start-Service -Name "YSoftSQ-Management";
@@ -180,7 +174,7 @@ while ($startupFinished -match "false") {
     if ($checkMatch -match '.*') {
         $startupFinished = "true"
     } elseif ($exception -match '.*') {
-        Write-Host "Startup of the Management service failed. Press any key to exit the script..." -foregroundcolor Red;
+        Write-Host "Startup of the Management service failed. Press any key to exit the script and try again..." -foregroundcolor Red;
         exit
     } else {
         Write-Host "Waiting for Management Service to complete the startup."
@@ -190,17 +184,8 @@ while ($startupFinished -match "false") {
 
 Write-Host "Startup is completed."
 
-<# TODO: Admin pasword change
-
-# To MU 30:
-UPDATE [cluster_mngmt].[users] SET pass = '$2a$12$KoX2bsKdA0PjrYlxIX8S5.ATTJNn3.xRYxiu/OZKLlw9.M6Ml2Vjq' WHERE login = 'admin'
-UPDATE [tenant_1].[users] SET pass = '$2a$12$KoX2bsKdA0PjrYlxIX8S5.ATTJNn3.xRYxiu/OZKLlw9.M6Ml2Vjq' WHERE login = 'admin'
-# From MU 30:
-UPDATE [cluster_mngmt].[users] SET pass = '$2a$12$H5.1EcVQHvGkO/LrTtXbj.S8O1O.WzKKVgAgoDlkb4QOpylHdJI9u' WHERE login = 'admin'
-UPDATE [tenant_1].[users] SET pass = '$2a$12$H5.1EcVQHvGkO/LrTtXbj.S8O1O.WzKKVgAgoDlkb4QOpylHdJI9u' WHERE login = 'admin'
-#>
-
 # TODO: Activate YSoft SafeQ License automatically (an API user is needed or database insert must be done)
+
 $License = Get-Content "\\10.0.0.105\licence_devel\SafeQ 6.0\current\license.xml" -Raw
 Set-Clipboard -Value $License
 

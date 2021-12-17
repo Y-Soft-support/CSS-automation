@@ -31,12 +31,12 @@ choco install mobaxterm
 ## choco install fiddler # maybe not
 
 # Set default browser to Chrome
-Set-ItemProperty "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\ftp\UserChoice" -name ProgId ChromeHTML
-Set-ItemProperty "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice" -name ProgId ChromeHTML
-Set-ItemProperty "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice" -name ProgId ChromeHTML
+$protocols = "ftp", "http", "https"
+foreach ($protocol in $protocols) {
+    Set-ItemProperty "HKCU:\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\$($protocol)\UserChoice" -name ProgId ChromeHTML
+}
 
-<#
-telnet
-print management
-lpr monitor
-#>
+# Install Wondows Features
+# List: Get-WindowsFeature -ComputerName $env:computername
+Install-WindowsFeature Telnet-Client
+Install-WindowsFeature LPR-Port-Monitor

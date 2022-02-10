@@ -21,27 +21,27 @@
 #>
 
 #-----------------------------------------------------------[Parameters]-----------------------------------------------------------
-# $INSTALL_SOURCE = ? TODO
-$PGPASS = '111111'
+# Main parameters
+$PGPASS = 'Admin@123'
+$LicenseLocation = Get-Content "C:\install\licenseLocation.txt"
+$ManagementInstaller = "C:\Install\ysq-management-server-install.exe"
+$SafeqFolder = "C:\SafeQ6"
+$ManagementFolder = "$($SafeqFolder)\Management"
+$IPV4 = (Get-NetIPAddress | Where-Object {$_.AddressState -eq "Preferred" -and $_.PrefixLength -eq 22}).IPAddress
+$PGA_HKLM = "\SOFTWARE\pgAdmin 4"
 
+# SQL queries
 $DROP_DB = "DROP DATABASE SQDB6;"
 $CREATE_DB = "CREATE DATABASE SQDB6;"
 
 $SQL_1 = "TRUNCATE TABLE cluster_mngmt.cluster_server;"
-$SQL_2 = "UPDATE cluster_mngmt.tenants SET db_pass='111111' WHERE schema_name='tenant_1';"
-$SQL_3 = "UPDATE cluster_mngmt.tenant_warehouses SET db_pass='111111' WHERE schema_name='dwhtenant_1';"
-$SQL_4 = "ALTER ROLE tenantuser_1 WITH PASSWORD '111111';"
-$SQL_5 = "ALTER ROLE dwhtenantuser_1 WITH PASSWORD '111111';"
+$SQL_2 = "UPDATE cluster_mngmt.tenants SET db_pass=$($PGPASS) WHERE schema_name='tenant_1';"
+$SQL_3 = "UPDATE cluster_mngmt.tenant_warehouses SET db_pass=$($PGPASS) WHERE schema_name='dwhtenant_1';"
+$SQL_4 = "ALTER ROLE tenantuser_1 WITH PASSWORD $($PGPASS);"
+$SQL_5 = "ALTER ROLE dwhtenantuser_1 WITH PASSWORD $($PGPASS);"
 $SQL_6 = "UPDATE cluster_mngmt.users SET pass = '`$2a`$12`$H5.1EcVQHvGkO/LrTtXbj.S8O1O.WzKKVgAgoDlkb4QOpylHdJI9u' WHERE login = 'admin';"
 $SQL_7 = "UPDATE tenant_1.users SET pass = '`$2a`$12`$H5.1EcVQHvGkO/LrTtXbj.S8O1O.WzKKVgAgoDlkb4QOpylHdJI9u' WHERE login = 'admin';"
 $SQL_UPD = $SQL_1, $SQL_2, $SQL_3, $SQL_4, $SQL_5, $SQL_6, $SQL_7
-
-$IPV4 = (Get-NetIPAddress | Where-Object {$_.AddressState -eq "Preferred" -and $_.PrefixLength -eq 22}).IPAddress
-
-$PGA_HKLM = "\SOFTWARE\pgAdmin 4"
-
-$SafeqFolder = "C:\SafeQ6"
-$ManagementFolder = "$($SafeqFolder)\Management"
 
 #-----------------------------------------------------------[Functions]------------------------------------------------------------
 
@@ -59,12 +59,8 @@ Function Get-PgAdminPath {
 
 Function cleaningAfterUninstall {
 
-    $reg1 = "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Y Soft Corporation\YSoft SafeQ 6"
-    $reg2 = '"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "SAFEQ_HOME"'
-    $reg3 = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\YSoft SafeQ 6}"
-    $registries = $reg1, $reg2, $reg3
-
     Remove-Item -LiteralPath $SafeqFolder -Force -Recurse -ErrorAction SilentlyContinue
+    Write-Host "'SafeQ6' folder removed"
 
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftEtcd) {sc.exe delete -Name "YSoftEtcd" | Out-Null}
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftIms) {sc.exe delete "YSoftIms" | Out-Null}
@@ -78,10 +74,20 @@ Function cleaningAfterUninstall {
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftSQ-WPS) {sc.exe delete "YSoftSQ-WPS" | Out-Null}
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\YSoftImsProxy) {sc.exe delete "YSoftImsProxy" | Out-Null}
     if (Test-Path HKLM:\SYSTEM\CurrentControlSet\Services\ABBYY.Licensing.FineReaderEngine.Windows.11.0) {sc.exe delete "ABBYY.Licensing.FineReaderEngine.Windows.11.0" | Out-Null}
+    Write-Host "Remaining services deleted."
+    
+    $regKey1 = "HKLM:\SOFTWARE\WOW6432Node\Y Soft Corporation\YSoft SafeQ 6"
+    $regKey2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\YSoft SafeQ 6}"
+    $regKey3 = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+    # HKEY_LOCAL_MACHINE/Software/Microsoft/Windows/CurrentVersion/Uninstall
+    # "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
 
-    ForEach ($reg in $registries) {
-        if (Test-Path $reg) {Remove-Item -Path $reg -Force -Verbose}
-    }
+    if (Test-Path $regKey1) {Remove-Item -Path $regKey1 -Force -Verbose}
+    if (Test-Path $regKey2) {Remove-Item -Path $regKey2 -Force -Verbose}
+    if (Test-Path (Get-ItemProperty -Path $regKey3 -Name "SAFEQ_HOME")) {Remove-ItemProperty -Path $regKey3 -Name "SAFEQ_HOME" -Force -Verbose}
+    
+    Write-Host (Test-Path (Get-ItemProperty -Path $regKey3 -Name "SAFEQ_HOME"))
+    Write-Host "YSoft SafeQ registries removed."
 }
 
 Function Restore-Database {
@@ -128,12 +134,12 @@ if (Test-Path $SafeqFolder) {
         Write-Host "YSoft SafeQ 6 is already uninstalled."
     } finally {
         cleaningAfterUninstall
-        Write-Host "YSoft SafeQ 6 additional cleaning is finished."
+        Write-Host "YSoft SafeQ 6 additional software removal steps finished."
     }
 }
 
 # Install Management Service
-C:\Install\ysq-management-server-install.exe /S /CFG:dbPassword=$PGPASS /CFG:noStartSvcs /CFG:dbClass=PGSQL /CFG:localGUID=mgmt /CFG:usedLocalIp=$IPV4 /CFG:embeddedDB /D=$ManagementFolder;
+& $ManagementInstaller /S /CFG:dbPassword=$PGPASS /CFG:noStartSvcs /CFG:dbClass=PGSQL /CFG:localGUID=mgmt-training /CFG:usedLocalIp=$IPV4 /CFG:embeddedDB /D=$ManagementFolder;
 Write-Host "New YSoft SafeQ 6 installation has started."
 
 # Wait for the installation to finish
@@ -143,12 +149,16 @@ $Version = $VersionLine.Split('version')[-1].Trim()
 $InstallationFinished = "false"
 
 while ($InstallationFinished -match "false") {
-Start-Sleep -s 20;
-$FileContents = Get-Content -Path "$($ManagementFolder)\management-server-install.log" -TotalCount 1
-$CheckMatch = $FileContents | Where-Object { $_ -match "Installation of YSoft SafeQ Management Server version $($Version) finished" }
+    Start-Sleep -s 20;
+    $FileContents = Get-Content -Path "$($ManagementFolder)\management-server-install.log"
+    $CheckMatch = $FileContents | Where-Object { $_ -match "Installation of YSoft SafeQ Management Server version $($Version) finished" }
+    $exception = $FileContents | Where-Object { $_ -match " ERROR:" }
 
     if ($CheckMatch -match '.*') {
         $InstallationFinished = "true"
+    } elseif ($exception -match '.*') {
+        Write-Host "Installation did not finish properly. Press any key to exit the script and try again..." -foregroundcolor Red;
+        exit
     } else {
         Write-Host "Installation has not finished yet."
     }
@@ -186,7 +196,7 @@ Write-Host "Startup is completed."
 
 # TODO: Activate YSoft SafeQ License automatically (an API user is needed or database insert must be done)
 
-$License = Get-Content "\\10.0.0.105\licence_devel\SafeQ 6.0\current\license.xml" -Raw
+$License = Get-Content $LicenseLocation -Raw
 Set-Clipboard -Value $License
 
 Write-Host "SQDB6 database was succesfully restored. License for activation is in your clipboard or you can rerun License-To-Clipboard.ps1. Press any key to continue..." -foregroundcolor Green;

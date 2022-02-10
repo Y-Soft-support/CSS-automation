@@ -12,6 +12,14 @@ New-NetFirewallRule -DisplayName "YSoft_SafeQ_Client_MGMT" -Protocol TCP -Direct
 New-NetFirewallRule -DisplayName "YSoft_SafeQ_Client_FSP" -Protocol TCP -Direction Inbound -LocalPort 515,5559,9100 -Action allow
 New-NetFirewallRule -DisplayName "YSoft_SafeQ_Client_EUI" -Protocol TCP -Direction Inbound -LocalPort 9090,9443 -Action allow
 
+# SAFEQ6 CLIENT V3 TO SERVER (SERVER INBOUND)
+New-NetFirewallRule -DisplayName "YSoft_SafeQ_Client_JS" -Protocol TCP -Direction Inbound -LocalPort 5000,5002 -Action allow
+### Windows workstations
+New-NetFirewallRule -DisplayName "YSoft_SafeQ_Client_WIN" -Protocol TCP -Direction Inbound -LocalPort 515,631,632 -Action allow
+### MAC workstations
+New-NetFirewallRule -DisplayName "YSoft_SafeQ_Client_MAC" -Protocol TCP -Direction Inbound -LocalPort 5515,5631,5632 -Action allow
+New-NetFirewallRule -DisplayName "YSoft_SafeQ_Client_EUI" -Protocol TCP -Direction Inbound -LocalPort 9090,9443 -Action allow
+
 # SAFEQ6 DEVICE TO SERVER (SERVER INBOUND)
 ### Must have
 New-NetFirewallRule -DisplayName "YSoft_SafeQ_Device_TS_ET" -Protocol TCP -Direction Inbound -LocalPort 5011,5012,5021,5022 -Action allow

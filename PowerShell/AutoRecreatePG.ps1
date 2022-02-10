@@ -20,14 +20,14 @@ $PG_USER = "postgres"
 $env:PGPASSWORD = "111111"
 
 # SQL commands
-$DROP_DB = "DROP DATABASE $PG_DB;"
-$CREATE_DB = "CREATE DATABASE $PG_DB;"
+$DROP_DB = "DROP DATABASE $($PG_DB);"
+$CREATE_DB = "CREATE DATABASE $($PG_DB);"
 
 # Backup file path
+$timestamp = (Get-Date).ToString("yyyy-MM-dd_HH-mm-ss")
 $BACKUP_FILE = "C:\backup\SQDB6_$timestamp.backup"
 
 # Miscelaneous
-$timestamp = (Get-Date).ToString("yyyy-MM-dd_HH-mm-ss")
 $IPV4 = (Get-NetIPAddress | Where-Object {$_.AddressState -eq "Preferred" -and $_.PrefixLength -eq 22}).IPAddress
 $CNAME = [System.Net.Dns]::GetHostName()
 
@@ -65,8 +65,8 @@ Function Restore-Database {
 }
 
 Function Update-ClusterServer {
-	$sql1 = UPDATE cluster_server SET ip_address = '$IPV4', description = '$CNAME' WHERE id=1
-	$sql2 = TRUNCATE TABLE smartq_validator  # (SQDB5, SQDB5_SQDW)
+	$SQL_1 = UPDATE cluster_server SET ip_address = '$IPV4', description = '$CNAME' WHERE id=1
+	$SQL_2 = TRUNCATE TABLE smartq_validator  # (SQDB5, SQDB5_SQDW)
 }
 
 #-----------------------------------------------------------[Execution]------------------------------------------------------------

@@ -44,3 +44,4 @@ if ($tslogMatch.length -gt 3)
     else
         {Write-Output ((Get-Date).ToString("HH:mm:ss") + " FINISHED - ThreadAbortException not found.")
         }
+    

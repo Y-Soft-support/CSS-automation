@@ -107,7 +107,7 @@ foreach ($server in $ServerUpdates.Keys) {
     Invoke-Command -Session $Session -ScriptBlock { $remove_zip }
 
     # Launch the installer
-    $installer =  "$InstallDirectoryPath)\$InstallPackageExe"
+    $installer =  "$InstallDirectoryPath\$InstallPackageExe"
     Invoke-Command -Session $Session -ScriptBlock { & cmd /c $($using:installer) '/S' } -Verbose
     Invoke-Command -Session $Session -ScriptBlock { $installer }
 
